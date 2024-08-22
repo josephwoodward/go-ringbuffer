@@ -17,7 +17,7 @@ func TestTracksEnd(t *testing.T) {
 	}
 }
 
-func TestReachesEnd(t *testing.T) {
+func Test_PerformsConsecutiveReads(t *testing.T) {
 	ring := NewRingBuffer(20)
 
 	ring.Write([]byte("Hello"))
@@ -27,10 +27,26 @@ func TestReachesEnd(t *testing.T) {
 		t.Errorf("expected write position to be %d but got %d", want, ring.writePos())
 	}
 
-	b := make([]byte, 5)
-	ring.Read(b)
+	// Read "Hello"
 	want = 5
+	b := make([]byte, want)
+	ring.Read(b)
+	if string(b) != "Hello" {
+		t.Error("expected initial input string to be read but was not")
+	}
 	if ring.readPost() != want {
 		t.Errorf("expected read position to be %d but was %d", want, ring.readPost())
+	}
+
+	// Read "World"
+	ring.Read(b)
+	if string(b) != "World" {
+		t.Error("expected following string read to be read but was not")
+	}
+	if ring.readPost() != 10 {
+		t.Errorf("expected read position to be %d but was %d", 10, ring.readPost())
+	}
+	if ring.writePos() != 10 {
+		t.Errorf("expected write position to be %d but was %d", 10, ring.readPost())
 	}
 }
