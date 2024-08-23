@@ -44,6 +44,10 @@ func (r *RingBuffer) Read(b []byte) (n int, err error) {
 	if len(b) == 0 {
 		return 0, nil
 	}
+	if r.r+len(b) > r.size {
+
+		return 0, BufferOverflowErr
+	}
 
 	r.r += copy(b, r.buffer[r.r:r.r+len(b)])
 

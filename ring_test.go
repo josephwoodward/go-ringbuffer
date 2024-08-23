@@ -53,9 +53,38 @@ func Test_ReadsToWritePosition(t *testing.T) {
 		t.Errorf("expected write position to be %d but was %d", 10, ring.readPos())
 	}
 }
+func Test_CannotReadPastWrite(t *testing.T) {
+	t.Run("cannot read past write pointer - in one go", func(t *testing.T) {
+		ring := NewRingBuffer(10)
+		ring.Write([]byte("0123456789"))
+		ring.Write([]byte("0123456789"))
+
+		b := make([]byte, 12)
+		n, err := ring.Read(b)
+		if n != 0 {
+			t.Errorf("number of bytes written should be 0 but was %d", n)
+		}
+		if !errors.Is(err, BufferOverflowErr) {
+			t.Errorf("buffer flow error expected but was %s", err)
+		}
+	})
+
+	t.Run("errors when reading past write pointer - incrementally", func(t *testing.T) {
+		ring := NewRingBuffer(20)
+		ring.Write([]byte("0123456789"))
+		ring.Write([]byte("0123456789"))
+
+		n, err := ring.Write([]byte("0"))
+		if n != 0 {
+			t.Errorf("number of bytes written should be 0 but was %d", n)
+		}
+		if !errors.Is(err, BufferOverflowErr) {
+			t.Errorf("buffer flow error expected but was %s", err)
+		}
+	})
+}
 
 func Test_CannotWriteMoreThanBufferSize(t *testing.T) {
-
 	t.Run("cannot exceed in one go", func(t *testing.T) {
 		ring := NewRingBuffer(20)
 
