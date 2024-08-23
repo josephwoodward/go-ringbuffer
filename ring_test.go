@@ -1,14 +1,17 @@
 package main
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
-func TestTracksEnd(t *testing.T) {
+func TestReadWritePointersTracked(t *testing.T) {
 	ring := NewRingBuffer(20)
 	msg := []byte("Hello")
 
 	ring.Write(msg)
 	if ring.writePos() != len(msg) {
-		t.Errorf("end expected to be %d but got %d", len(msg), ring.r)
+		t.Errorf("end expected to be %d but got %d", len(msg), ring.readPos())
 	}
 
 	msg = []byte("World")
@@ -17,7 +20,7 @@ func TestTracksEnd(t *testing.T) {
 	}
 }
 
-func Test_PerformsConsecutiveReads(t *testing.T) {
+func Test_ReadsToWritePosition(t *testing.T) {
 	ring := NewRingBuffer(20)
 
 	ring.Write([]byte("Hello"))
@@ -34,8 +37,8 @@ func Test_PerformsConsecutiveReads(t *testing.T) {
 	if string(b) != "Hello" {
 		t.Error("expected initial input string to be read but was not")
 	}
-	if ring.readPost() != want {
-		t.Errorf("expected read position to be %d but was %d", want, ring.readPost())
+	if ring.readPos() != want {
+		t.Errorf("expected read position to be %d but was %d", want, ring.readPos())
 	}
 
 	// Read "World"
@@ -43,10 +46,39 @@ func Test_PerformsConsecutiveReads(t *testing.T) {
 	if string(b) != "World" {
 		t.Error("expected following string read to be read but was not")
 	}
-	if ring.readPost() != 10 {
-		t.Errorf("expected read position to be %d but was %d", 10, ring.readPost())
+	if ring.readPos() != 10 {
+		t.Errorf("expected read position to be %d but was %d", 10, ring.readPos())
 	}
 	if ring.writePos() != 10 {
-		t.Errorf("expected write position to be %d but was %d", 10, ring.readPost())
+		t.Errorf("expected write position to be %d but was %d", 10, ring.readPos())
 	}
+}
+
+func Test_CannotWriteMoreThanBufferSize(t *testing.T) {
+
+	t.Run("cannot exceed in one go", func(t *testing.T) {
+		ring := NewRingBuffer(20)
+
+		n, err := ring.Write([]byte("012345678901234567890"))
+		if n != 0 {
+			t.Errorf("number of bytes written should be 0 but was %d", n)
+		}
+		if !errors.Is(err, BufferOverflowErr) {
+			t.Errorf("buffer flow error expected but was %s", err)
+		}
+	})
+
+	t.Run("cannot exceed incrementally", func(t *testing.T) {
+		ring := NewRingBuffer(20)
+		ring.Write([]byte("0123456789"))
+		ring.Write([]byte("0123456789"))
+
+		n, err := ring.Write([]byte("0"))
+		if n != 0 {
+			t.Errorf("number of bytes written should be 0 but was %d", n)
+		}
+		if !errors.Is(err, BufferOverflowErr) {
+			t.Errorf("buffer flow error expected but was %s", err)
+		}
+	})
 }

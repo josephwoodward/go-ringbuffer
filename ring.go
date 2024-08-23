@@ -1,6 +1,13 @@
 package main
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
+
+var (
+	BufferOverflowErr = errors.New("buffer too small")
+)
 
 type RingBuffer struct {
 	w, r   int
@@ -12,15 +19,19 @@ type RingBuffer struct {
 
 func NewRingBuffer(size int) *RingBuffer {
 	return &RingBuffer{
+		size:   size,
 		buffer: make([]byte, size),
 		w:      0,
 		r:      0,
 	}
 }
 
-func (r *RingBuffer) Write(b []byte) (n int, er error) {
+func (r *RingBuffer) Write(b []byte) (n int, err error) {
 	if len(b) == 0 {
 		return 0, nil
+	}
+	if len(b)+r.w > r.size {
+		return 0, BufferOverflowErr
 	}
 
 	copy(r.buffer[r.w:], b)
@@ -43,6 +54,6 @@ func (r *RingBuffer) writePos() int {
 	return r.w
 }
 
-func (r *RingBuffer) readPost() int {
+func (r *RingBuffer) readPos() int {
 	return r.r
 }
