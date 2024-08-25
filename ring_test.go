@@ -5,7 +5,9 @@ import (
 	"testing"
 )
 
-func TestReadWritePointersTracked(t *testing.T) {
+func Test_ReadWritePointersTracked(t *testing.T) {
+	t.Parallel()
+
 	ring := NewRingBuffer(20)
 	msg := []byte("Hello")
 
@@ -20,56 +22,84 @@ func TestReadWritePointersTracked(t *testing.T) {
 	}
 }
 
-func Test_ReadsToWritePosition(t *testing.T) {
-	ring := NewRingBuffer(20)
+func Test_Read(t *testing.T) {
+	t.Run("can read into larger buffer", func(t *testing.T) {
+		t.Parallel()
 
-	ring.Write([]byte("Hello"))
-	ring.Write([]byte("World"))
-	want := 10
-	if ring.writePos() != want {
-		t.Errorf("expected write position to be %d but got %d", want, ring.writePos())
-	}
-
-	// Read "Hello"
-	want = 5
-	b := make([]byte, want)
-	ring.Read(b)
-	if string(b) != "Hello" {
-		t.Error("expected initial input string to be read but was not")
-	}
-	if ring.readPos() != want {
-		t.Errorf("expected read position to be %d but was %d", want, ring.readPos())
-	}
-
-	// Read "World"
-	ring.Read(b)
-	if string(b) != "World" {
-		t.Error("expected following string read to be read but was not")
-	}
-	if ring.readPos() != 10 {
-		t.Errorf("expected read position to be %d but was %d", 10, ring.readPos())
-	}
-	if ring.writePos() != 10 {
-		t.Errorf("expected write position to be %d but was %d", 10, ring.readPos())
-	}
-}
-func Test_CannotReadPastWrite(t *testing.T) {
-	t.Run("cannot read past write pointer - in one go", func(t *testing.T) {
 		ring := NewRingBuffer(10)
-		ring.Write([]byte("0123456789"))
 		ring.Write([]byte("0123456789"))
 
 		b := make([]byte, 12)
 		n, err := ring.Read(b)
-		if n != 0 {
+		if err != nil {
+			t.Errorf("unexpected error reading from buffer: %s", err)
+		}
+
+		if n != 10 {
 			t.Errorf("number of bytes written should be 0 but was %d", n)
 		}
-		if !errors.Is(err, BufferOverflowErr) {
-			t.Errorf("buffer flow error expected but was %s", err)
+		if string(b[:n]) != "0123456789" {
+			t.Errorf("expected string from buffer but was %s", string(b))
+		}
+		if string(b[n:12]) != "\x00\x00" {
+			t.Errorf("expected string from buffer but was %s", string(b))
 		}
 	})
 
-	t.Run("errors when reading past write pointer - incrementally", func(t *testing.T) {
+	t.Run("can read segmenet into smaller buffer", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		ring := NewRingBuffer(25)
+		ring.Write([]byte("Hello"))
+		ring.Write([]byte("World"))
+
+		want := 10
+		if ring.writePos() != want {
+			t.Errorf("expected write position to be %d but got %d", want, ring.writePos())
+		}
+
+		// Act - Read "Hello"
+		var n int
+		var err error
+		want = 5
+		b := make([]byte, want)
+		if n, err = ring.Read(b); err != nil || n != want {
+			t.Errorf("unexpected error reading from buffer: %s", err)
+		} else if n != want {
+			t.Errorf("number of bytes written should be %d but was %d", want, n)
+		}
+
+		if string(b) != "Hello" {
+			t.Error("expected initial input string to be read but was not")
+		}
+		if ring.readPos() != want {
+			t.Errorf("expected read position to be %d but was %d", want, ring.readPos())
+		}
+
+		// Act - Read "World"
+		if n, err = ring.Read(b); err != nil || n != want {
+			t.Errorf("unexpected error reading from buffer: %s", err)
+		} else if n != want {
+			t.Errorf("number of bytes written should be %d but was %d", want, n)
+		}
+
+		if string(b) != "World" {
+			t.Error("expected following string read to be read but was not")
+		}
+		if ring.readPos() != 10 {
+			t.Errorf("expected read position to be %d but was %d", 10, ring.readPos())
+		}
+	})
+
+	t.Run("can wrap around when reading", func(t *testing.T) {
+		t.Parallel()
+		// TODO
+	})
+
+	t.Run("can't read past write pointer - incrementally", func(t *testing.T) {
+		t.Parallel()
+
 		ring := NewRingBuffer(20)
 		ring.Write([]byte("0123456789"))
 		ring.Write([]byte("0123456789"))
@@ -84,8 +114,13 @@ func Test_CannotReadPastWrite(t *testing.T) {
 	})
 }
 
+func Test_ReadsToWritePosition(t *testing.T) {
+}
+
 func Test_CannotWriteMoreThanBufferSize(t *testing.T) {
 	t.Run("cannot exceed in one go", func(t *testing.T) {
+		t.Parallel()
+
 		ring := NewRingBuffer(20)
 
 		n, err := ring.Write([]byte("012345678901234567890"))
@@ -98,6 +133,8 @@ func Test_CannotWriteMoreThanBufferSize(t *testing.T) {
 	})
 
 	t.Run("cannot exceed incrementally", func(t *testing.T) {
+		t.Parallel()
+
 		ring := NewRingBuffer(20)
 		ring.Write([]byte("0123456789"))
 		ring.Write([]byte("0123456789"))

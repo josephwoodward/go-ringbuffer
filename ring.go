@@ -44,14 +44,18 @@ func (r *RingBuffer) Read(b []byte) (n int, err error) {
 	if len(b) == 0 {
 		return 0, nil
 	}
-	if r.r+len(b) > r.size {
 
-		return 0, BufferOverflowErr
+	remainder := r.size - r.r
+	copied := 0
+	if len(b) > remainder {
+		copied = copy(b, r.buffer[r.r:remainder])
+		r.r += copied
+	} else {
+		copied = copy(b, r.buffer[r.r:r.r+len(b)])
+		r.r += copied
 	}
 
-	r.r += copy(b, r.buffer[r.r:r.r+len(b)])
-
-	return r.r, nil
+	return copied, nil
 }
 
 func (r *RingBuffer) writePos() int {
