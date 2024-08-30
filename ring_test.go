@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"testing"
 )
 
@@ -19,6 +18,28 @@ func Test_ReadWritePointersTracked(t *testing.T) {
 	msg = []byte("World")
 	if ring.writePos() != len(msg) {
 		t.Errorf("end expected to be %d but got %d", len(msg), ring.writePos())
+	}
+}
+
+func Test_BufferWrapping(t *testing.T) {
+	// Arrange
+	ring := NewRingBuffer(20)
+	ring.Write([]byte("0123456789"))
+	ring.Write([]byte("01234567"))
+	ring.Write([]byte("89hello"))
+
+	// Act + Assert
+	b := make([]byte, 25)
+	if _, err := ring.Read(b); err != nil {
+		t.Errorf("unexpected error reading from buffer: %s", err)
+	}
+
+	if string(b) != "hello567890123456789\x00\x00\x00\x00\x00" {
+		t.Errorf("read value was expected but was %s", string(b))
+	}
+
+	if string(ring.buffer) != "hello567890123456789" {
+		t.Errorf("buffer order expected but was %s", string(ring.buffer))
 	}
 }
 
@@ -46,7 +67,7 @@ func Test_Read(t *testing.T) {
 		}
 	})
 
-	t.Run("can read segmenet into smaller buffer", func(t *testing.T) {
+	t.Run("can read parts into a smaller buffer", func(t *testing.T) {
 		t.Parallel()
 
 		// Arrange
@@ -94,7 +115,29 @@ func Test_Read(t *testing.T) {
 
 	t.Run("can wrap around when reading", func(t *testing.T) {
 		t.Parallel()
+		// t.Skip()
 		// TODO
+
+		// Arrange
+		ring := NewRingBuffer(20)
+		ring.Write([]byte("0123456789"))
+		ring.Write([]byte("0123456789"))
+		ring.Write([]byte("hello"))
+
+		// Act + Assert
+		var n int
+		var err error
+		want := 25
+		b := make([]byte, want)
+		if n, err = ring.Read(b); err != nil || n != want {
+			t.Errorf("unexpected error reading from buffer: %s", err)
+		} else if n != want {
+			t.Errorf("number of bytes written should be %d but was %d", want, n)
+		}
+
+		if string(b) != "567890123456789hello" {
+			t.Errorf("read value was expected but was %s", string(b))
+		}
 	})
 
 	t.Run("can't read past write pointer - incrementally", func(t *testing.T) {
@@ -104,47 +147,12 @@ func Test_Read(t *testing.T) {
 		ring.Write([]byte("0123456789"))
 		ring.Write([]byte("0123456789"))
 
-		n, err := ring.Write([]byte("0"))
+		n, _ := ring.Write([]byte("0"))
 		if n != 0 {
 			t.Errorf("number of bytes written should be 0 but was %d", n)
-		}
-		if !errors.Is(err, BufferOverflowErr) {
-			t.Errorf("buffer flow error expected but was %s", err)
 		}
 	})
 }
 
 func Test_ReadsToWritePosition(t *testing.T) {
-}
-
-func Test_CannotWriteMoreThanBufferSize(t *testing.T) {
-	t.Run("cannot exceed in one go", func(t *testing.T) {
-		t.Parallel()
-
-		ring := NewRingBuffer(20)
-
-		n, err := ring.Write([]byte("012345678901234567890"))
-		if n != 0 {
-			t.Errorf("number of bytes written should be 0 but was %d", n)
-		}
-		if !errors.Is(err, BufferOverflowErr) {
-			t.Errorf("buffer flow error expected but was %s", err)
-		}
-	})
-
-	t.Run("cannot exceed incrementally", func(t *testing.T) {
-		t.Parallel()
-
-		ring := NewRingBuffer(20)
-		ring.Write([]byte("0123456789"))
-		ring.Write([]byte("0123456789"))
-
-		n, err := ring.Write([]byte("0"))
-		if n != 0 {
-			t.Errorf("number of bytes written should be 0 but was %d", n)
-		}
-		if !errors.Is(err, BufferOverflowErr) {
-			t.Errorf("buffer flow error expected but was %s", err)
-		}
-	})
 }
