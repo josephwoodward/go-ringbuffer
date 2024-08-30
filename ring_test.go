@@ -21,12 +21,23 @@ func Test_ReadWritePointersTracked(t *testing.T) {
 	}
 }
 
+func mustAssertBytesWritten(t *testing.T, want, got int) {
+	if want != got {
+		t.Errorf("unexpected write count to be %d but was %d", want, got)
+	}
+}
+
 func Test_BufferWrapping(t *testing.T) {
 	// Arrange
 	ring := NewRingBuffer(20)
-	ring.Write([]byte("0123456789"))
-	ring.Write([]byte("01234567"))
-	ring.Write([]byte("89hello"))
+	n, _ := ring.Write([]byte("0123456789"))
+	mustAssertBytesWritten(t, 10, n)
+
+	n, _ = ring.Write([]byte("01234567"))
+	mustAssertBytesWritten(t, 8, n)
+
+	n, _ = ring.Write([]byte("89hello"))
+	mustAssertBytesWritten(t, 7, n)
 
 	// Act + Assert
 	b := make([]byte, 25)

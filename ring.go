@@ -32,32 +32,26 @@ func (r *RingBuffer) Write(b []byte) (n int, err error) {
 	}
 
 	// Write is still within buffer capacity
-	if r.w+len(b) <= r.size {
-		r.full = false
+	if len(b)+r.w <= r.size {
+		// TODO: We can improve this by always filling remaining
 		n := copy(r.buffer[r.w:], b)
 		r.w += n
+		r.full = false
 		return n, nil
 	}
 
-	// TODO: Start wrapping around to the start
-	if r.w+len(b) > r.size {
-		// fill remainder of buffer before wrapping back to beginning
-		remainder := r.size - r.w
-		n = copy(r.buffer[r.w:r.w+remainder], b[:remainder])
-		r.w += n
-		if r.w >= r.size {
-			r.full = true
-			r.w = 0
-		}
-
-		_ = copy(r.buffer[r.w:len(b)-n], b[remainder:])
+	// If write will exceed buffer then we need to wrap
+	// Start by filling remaining capacity of buffer before wrapping back to beginning
+	remaining := r.size - r.w
+	n = copy(r.buffer[r.w:r.w+remaining], b[:remaining])
+	r.w += n
+	if r.w >= r.size {
+		r.full = true
+		r.w = 0
 	}
 
-	// if len(b)+r.w > r.size {
-	// 	return 0, BufferOverflowErr
-	// }
-
-	return 0, nil
+	n += copy(r.buffer[r.w:len(b)-n], b[remaining:])
+	return n, nil
 }
 
 func (r *RingBuffer) Read(b []byte) (n int, err error) {
